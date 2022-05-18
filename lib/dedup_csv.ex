@@ -33,19 +33,12 @@ defmodule DedupCSV do
       |> Enum.filter(&filter(&1, seens, strategy))
       |> write_to_csv(file_path)
     else
-      {"file exists", false} ->
-        msg = "file doesn't exist"
-        Logger.error(msg)
-        {:error, msg}
-
-      {"file size", false} ->
-        msg = "file too large"
-        Logger.error(msg)
-        {:error, msg}
+      {"file exists", false} -> error("file doesn't exist")
+      {"file size", false} -> error("file too large")
     end
   end
 
-  def run(file_path, _strategy), do: {:error, "bad file path: #{inspect(file_path)}"}
+  def run(file_path, _strategy), do: error("bad file path: #{inspect(file_path)}")
 
   #
   # Secondary Functions
@@ -96,11 +89,7 @@ defmodule DedupCSV do
        ),
        do: unique_item?(seen_emails, email) and unique_item?(seen_phones, phone)
 
-  defp write_to_csv([], _) do
-    msg = "empty, invalid, or fully-duplicated CSV"
-    Logger.error(msg)
-    {:error, msg}
-  end
+  defp write_to_csv([], _), do: error("empty, invalid, or fully-duplicated CSV")
 
   defp write_to_csv(list, file_path) do
     now = DateTime.utc_now() |> DateTime.to_unix()
@@ -121,8 +110,7 @@ defmodule DedupCSV do
         {:ok, filename}
 
       err ->
-        Logger.error("#{inspect(err)}")
-        {:error, err}
+        error("#{inspect(err)}")
     end
   end
 
@@ -156,4 +144,9 @@ defmodule DedupCSV do
   # be offloaded to config for env-specific right-sizing. As fo now, this value
   # is set to 0.4 to allow for the "double" case of the :email_or_phone strategy.
   defp max_file_size, do: @file_size_coefficient * :erlang.memory(:total)
+
+  defp error(msg) do
+    Logger.error(msg)
+    {:error, msg}
+  end
 end
