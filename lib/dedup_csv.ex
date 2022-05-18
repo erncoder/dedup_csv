@@ -104,6 +104,7 @@ defmodule DedupCSV do
 
   defp write_to_csv(list, file_path) do
     now = DateTime.utc_now() |> DateTime.to_unix()
+    File.mkdir("output")
     filename = "output/#{Path.basename(file_path)}--deduped--#{now}.csv"
     headers = "First Name,Last Name,Email,Phone\n"
 

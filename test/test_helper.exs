@@ -1,3 +1,3 @@
 File.rm_rf!("output")
-File.mkdir!("output")
+File.mkdir("output")
 ExUnit.start()
