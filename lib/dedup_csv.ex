@@ -21,7 +21,8 @@ defmodule DedupCSV do
   subdirectory.
   """
   def run(file_path, strategy) when is_binary(file_path) and strategy in @strategies do
-    if file_size_ok?(file_path) do
+    with {"file exists", true} <- {"file exists", File.exists?(file_path)},
+         {"file size", true} <- {"file size", file_size_ok?(file_path)} do
       {decoded, seens} =
         file_path
         |> File.stream!()
@@ -32,9 +33,15 @@ defmodule DedupCSV do
       |> Enum.filter(&filter(&1, seens, strategy))
       |> write_to_csv(file_path)
     else
-      msg = "file too large"
-      Logger.error(msg)
-      {:error, msg}
+      {"file exists", false} ->
+        msg = "file doesn't exist"
+        Logger.error(msg)
+        {:error, msg}
+
+      {"file size", false} ->
+        msg = "file too large"
+        Logger.error(msg)
+        {:error, msg}
     end
   end
 
@@ -49,6 +56,8 @@ defmodule DedupCSV do
   # once before any fields can be removed, so the filtration step has to be
   # broken out and performed afterward.
   defp mapper(decoded_tuple, acc, strategy)
+
+  defp mapper({:ok, %{"" => ""}}, acc, _strat), do: {nil, acc}
 
   defp mapper({:ok, row}, acc, :email) do
     seen_emails = build_email_seens(row, acc)
@@ -72,6 +81,8 @@ defmodule DedupCSV do
   # dictated by the specified strategy.
   defp filter(row, seen_keys, strategy)
 
+  defp filter(nil, _seens, _strategy), do: false
+
   defp filter(%{"Email" => email}, %{"emails" => seen_emails}, :email),
     do: unique_item?(seen_emails, email)
 
@@ -86,7 +97,7 @@ defmodule DedupCSV do
        do: unique_item?(seen_emails, email) and unique_item?(seen_phones, phone)
 
   defp write_to_csv([], _) do
-    msg = "empty or otherwise invalid CSV"
+    msg = "empty, invalid, or fully-duplicated CSV"
     Logger.error(msg)
     {:error, msg}
   end
@@ -104,8 +115,13 @@ defmodule DedupCSV do
       |> Enum.join("\n")
 
     case File.write(filename, headers <> body) do
-      :ok -> Logger.info("successfully wrote #{filename}")
-      err -> Logger.error(IO.inspect(err))
+      :ok ->
+        Logger.info("successfully wrote #{filename}")
+        {:ok, filename}
+
+      err ->
+        Logger.error("#{inspect(err)}")
+        {:error, err}
     end
   end
 
